@@ -27,26 +27,44 @@ int disable_xor = 0;
 int random_drop = 0;
 
 char key_string[1000] = "";
+int key_length = 0;
 
 // int local_listen_fd=-1;
 
-void encrypt_0(char *input, int &len, char *key) {
-    int i, j;
-    if (key[0] == 0) return;
-    for (i = 0, j = 0; i < len; i++, j++) {
-        if (key[j] == 0) j = 0;
-        input[i] ^= key[j];
+void initialize_key_string() {
+    mylog(log_debug, "key=%s\n", key_string);
+    key_length = strlen(key_string);
+    if (key_length == 0) {
+        mylog(log_fatal, "key len=0??\n");
+        myexit(-1);
+    }
+    /* repeat the key, so there will be less branching while encrypting / decrypting.
+     * since modern CPUs usually have 64 bytes cache line,
+     * setting key size between 32 and 64 seems good idea.
+     */
+    if (key_length <= MINIMAL_KEY_LENGTH) {
+        int original_key_length = key_length;
+        while (key_length + original_key_length <= MINIMAL_KEY_LENGTH * 2) {
+            memcpy(key_string + key_length, key_string, original_key_length);
+            key_length += original_key_length;
+        }
+    }
+    // keeping backward compatibility with functions treating key_string as C string.
+    key_string[key_length] = 0;
+}
+
+void xor_crypt(char *input, int &len) {
+    const char *key_end = key_string + key_length;
+    const char *key_ptr = key_string;
+    const char * input_end = input + len;
+    for (char *input_ptr = input; input_ptr < input_end; ++input_ptr) {
+        *input_ptr ^= *key_ptr;
+        if (++key_ptr == key_end) {
+            key_ptr = key_string;
+        }
     }
 }
 
-void decrypt_0(char *input, int &len, char *key) {
-    int i, j;
-    if (key[0] == 0) return;
-    for (i = 0, j = 0; i < len; i++, j++) {
-        if (key[j] == 0) j = 0;
-        input[i] ^= key[j];
-    }
-}
 int do_obscure_old(const char *input, int in_len, char *output, int &out_len) {
     // memcpy(output,input,in_len);
     //	out_len=in_len;
@@ -307,12 +325,12 @@ int put_crc32(char *s, int &len) {
 int do_cook(char *data, int &len) {
     put_crc32(data, len);
     if (!disable_obscure) do_obscure(data, len);
-    if (!disable_xor) encrypt_0(data, len, key_string);
+    if (!disable_xor) xor_crypt(data, len);
     return 0;
 }
 
 int de_cook(char *s, int &len) {
-    if (!disable_xor) decrypt_0(s, len, key_string);
+    if (!disable_xor) xor_crypt(s, len);
     if (!disable_obscure) {
         int ret = de_obscure(s, len);
         if (ret != 0) {
