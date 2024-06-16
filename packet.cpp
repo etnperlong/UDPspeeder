@@ -26,7 +26,7 @@ int disable_xor = 0;
 
 int random_drop = 0;
 
-char key_string[1000] = "";
+char key_string[MAXIMAL_KEY_LENGTH * BYTES_PER_XOR_CRYPT] = "";
 int key_length = 0;
 
 // int local_listen_fd=-1;
@@ -38,30 +38,51 @@ void initialize_key_string() {
         mylog(log_fatal, "key len=0??\n");
         myexit(-1);
     }
-    /* repeat the key, so there will be less branching while encrypting / decrypting.
-     * since modern CPUs usually have 64 bytes cache line,
-     * setting key size between 32 and 64 seems good idea.
-     */
-    if (key_length <= MINIMAL_KEY_LENGTH) {
-        int original_key_length = key_length;
-        while (key_length + original_key_length <= MINIMAL_KEY_LENGTH * 2) {
-            memcpy(key_string + key_length, key_string, original_key_length);
-            key_length += original_key_length;
-        }
+    // repeat the key, so encryption / decryption can be done 64 bits at a time
+    for (int original_key_length = key_length;
+         key_length % BYTES_PER_XOR_CRYPT != 0;
+         key_length += original_key_length) {
+        memcpy(key_string + key_length, key_string, original_key_length);
     }
+
+    // for (int original_key_length = key_length;
+    //      key_length < MINIMAL_KEY_LENGTH;
+    //      key_length += original_key_length) {
+    //     memcpy(key_string + key_length, key_string, original_key_length);
+    // }
+
     // keeping backward compatibility with functions treating key_string as C string.
     key_string[key_length] = 0;
 }
 
+// structure to solve unaligned operations
+struct __attribute__((__packed__)) packed_struct {
+    uint64_t val;
+};
+uint64_t unaligned_load(void *p) noexcept {
+    return reinterpret_cast<packed_struct *>(p)->val;
+}
+void unaligned_store(void *p, uint64_t v) noexcept {
+    reinterpret_cast<packed_struct *>(p)->val = v;
+}
 void xor_crypt(char *input, int &len) {
-    const char *key_end = key_string + key_length;
-    const char *key_ptr = key_string;
-    const char * input_end = input + len;
-    for (char *input_ptr = input; input_ptr < input_end; ++input_ptr) {
-        *input_ptr ^= *key_ptr;
-        if (++key_ptr == key_end) {
+    size_t i = 0;
+    char * key_ptr = key_string;
+    const char * key_end = key_string + key_length;
+    while (i + BYTES_PER_XOR_CRYPT <= (size_t)len) {
+        uint64_t value_input = unaligned_load(input + i);
+        // uint64_t value_key = unaligned_load(key_string + i % key_length);
+        uint64_t value_key = unaligned_load(key_ptr);
+
+        unaligned_store(input + i, value_input ^ value_key);
+        i += BYTES_PER_XOR_CRYPT;
+        key_ptr += BYTES_PER_XOR_CRYPT;
+        if (key_ptr == key_end) {
             key_ptr = key_string;
         }
+    }
+    for (; i < (size_t)len; ++i) {
+        *(input + i) ^= *(key_string + i % key_length);
     }
 }
 
@@ -283,7 +304,7 @@ int put_conv0(u32_t conv, const char *input, int len_in, char *&output, int &len
     memcpy(output, &n_conv, sizeof(n_conv));
     memcpy(output + sizeof(n_conv), input, len_in);
     // u32_t crc32 = crc32h((unsigned char *)output, len_in + sizeof(crc32));
-    u32_t crc32 = (u32_t) crc32_fast(output, len_in + sizeof(crc32));
+    u32_t crc32 = (u32_t)crc32_fast(output, len_in + sizeof(crc32));
     u32_t crc32_n = htonl(crc32);
     len_out = len_in + (int)(sizeof(n_conv)) + (int)sizeof(crc32_n);
     memcpy(output + len_in + (int)(sizeof(n_conv)), &crc32_n, sizeof(crc32_n));
@@ -304,7 +325,7 @@ int get_conv0(u32_t &conv, const char *input, int len_in, char *&output, int &le
     memcpy(&crc32_n, input + len_in - (int)sizeof(crc32_n), sizeof(crc32_n));
     u32_t crc32 = ntohl(crc32_n);
     // if (crc32 != crc32h((unsigned char *)input, len_in - (int)sizeof(crc32_n))) {
-    if (crc32 != (u32_t) crc32_fast(input, len_in - sizeof(crc32_n))) {
+    if (crc32 != (u32_t)crc32_fast(input, len_in - sizeof(crc32_n))) {
         mylog(log_debug, "crc32 check failed\n");
         return -1;
     }
@@ -315,7 +336,7 @@ int put_crc32(char *s, int &len) {
     assert(len >= 0);
     // if(len<0) return -1;
     // u32_t crc32 = crc32h((unsigned char *)s, len);
-    u32_t crc32 = (u32_t) crc32_fast(s, len);
+    u32_t crc32 = (u32_t)crc32_fast(s, len);
     write_u32(s + len, crc32);
     len += sizeof(u32_t);
 
@@ -352,7 +373,7 @@ int rm_crc32(char *s, int &len) {
     if (len < 0) return -1;
     u32_t crc32_in = read_u32(s + len);
     // u32_t crc32 = crc32h((unsigned char *)s, len);
-    u32_t crc32 = (u32_t) crc32_fast(s, len);
+    u32_t crc32 = (u32_t)crc32_fast(s, len);
     if (crc32 != crc32_in) return -1;
     return 0;
 }

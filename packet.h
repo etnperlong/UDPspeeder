@@ -18,7 +18,10 @@ extern u64_t packet_send_count;
 extern u64_t dup_packet_send_count;
 extern u64_t packet_recv_count;
 extern u64_t dup_packet_recv_count;
-extern char key_string[1000];
+#define BYTES_PER_XOR_CRYPT sizeof(uint64_t)
+#define MINIMAL_KEY_LENGTH 32
+#define MAXIMAL_KEY_LENGTH 1000 // including ending \0
+extern char key_string[MAXIMAL_KEY_LENGTH*BYTES_PER_XOR_CRYPT];
 extern int disable_replay_filter;
 extern int random_drop;
 extern int disable_obscure;
@@ -26,7 +29,6 @@ extern int disable_xor;
 
 int my_send(const dest_t &dest, char *data, int len);
 
-#define MINIMAL_KEY_LENGTH 32
 void initialize_key_string();
 void xor_crypt(char *input, int &len);
 int add_seq(char *data, int &data_len);

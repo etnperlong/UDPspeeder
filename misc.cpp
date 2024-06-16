@@ -626,7 +626,7 @@ void process_arg(int argc, char *argv[]) {
         switch (opt) {
             case 'k':
                 char format[10];  // 10 is plenty for "%1000s\0"
-                snprintf(format, sizeof(format), "%%%lus", sizeof(key_string) - 1);
+                snprintf(format, sizeof(format), "%%%ds", MAXIMAL_KEY_LENGTH - 1);
                 sscanf(optarg, format, key_string);
                 initialize_key_string();
                 break;
