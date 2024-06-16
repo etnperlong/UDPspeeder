@@ -625,12 +625,10 @@ void process_arg(int argc, char *argv[]) {
         // opt_key+=opt;
         switch (opt) {
             case 'k':
-                sscanf(optarg, "%s\n", key_string);
-                mylog(log_debug, "key=%s\n", key_string);
-                if (strlen(key_string) == 0) {
-                    mylog(log_fatal, "key len=0??\n");
-                    myexit(-1);
-                }
+                char format[10];  // 10 is plenty for "%1000s\0"
+                snprintf(format, sizeof(format), "%%%lus", sizeof(key_string) - 1);
+                sscanf(optarg, format, key_string);
+                initialize_key_string();
                 break;
             case 'j':
                 if (strchr(optarg, ':') == 0) {

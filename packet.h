@@ -26,8 +26,9 @@ extern int disable_xor;
 
 int my_send(const dest_t &dest, char *data, int len);
 
-void encrypt_0(char *input, int &len, char *key);
-void decrypt_0(char *input, int &len, char *key);
+#define MINIMAL_KEY_LENGTH 32
+void initialize_key_string();
+void xor_crypt(char *input, int &len);
 int add_seq(char *data, int &data_len);
 int remove_seq(char *data, int &data_len);
 int do_obscure(const char *input, int in_len, char *output, int &out_len);
