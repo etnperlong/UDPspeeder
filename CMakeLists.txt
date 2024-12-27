@@ -63,7 +63,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         WIN32_LEAN_AND_MEAN
         _WIN32_WINNT=0x0601
         NOMINMAX
-        INVALID_SOCKET=SOCKET(-1)
+        INVALID_SOCKET=SOCKET\(-1\)
         SOCKET_ERROR=-1
     )
 endif()
