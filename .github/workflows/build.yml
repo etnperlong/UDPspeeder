@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake
+          sudo apt-get install -y cmake git
           if [ "${{ matrix.os }}" = "windows" ]; then
             sudo apt-get install -y mingw-w64
           fi
@@ -48,6 +48,9 @@ jobs:
           else
             cmake -B build -DCMAKE_BUILD_TYPE=Release
           fi
+    
+      - name: Export Git Version
+        run: echo "const char *gitversion = \"$(git rev-parse HEAD)\";" > git_version.h
 
       - name: Build
         run: cmake --build build --config Release
