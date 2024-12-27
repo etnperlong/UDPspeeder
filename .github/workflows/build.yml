@@ -1,0 +1,88 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            compiler: g++
+            artifact: speederv2-linux-amd64
+          - os: linux
+            arch: arm64
+            compiler: g++
+            artifact: speederv2-linux-arm64
+          - os: windows
+            arch: amd64
+            compiler: x86_64-w64-mingw32-g++
+            artifact: speederv2-windows-amd64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            sudo apt-get install -y mingw-w64
+          fi
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y g++-aarch64-linux-gnu
+          fi
+
+      - name: Configure CMake
+        run: |
+          if [ "${{ matrix.os }}" = "linux" ] && [ "${{ matrix.arch }}" = "arm64" ]; then
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
+          elif [ "${{ matrix.os }}" = "windows" ]; then
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_SYSTEM_NAME=Windows
+          else
+            cmake -B build -DCMAKE_BUILD_TYPE=Release
+          fi
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Prepare artifact
+        run: |
+          if [ "${{ matrix.os }}" = "linux" ]; then
+            mv build/speederv2 ${{ matrix.artifact }}
+            gzip ${{ matrix.artifact }}
+          else
+            mv build/speederv2.exe ${{ matrix.artifact }}
+            zip ${{ matrix.artifact }}.zip ${{ matrix.artifact }}
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.gz
+            ${{ matrix.artifact }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            **/speederv2-linux-amd64.gz
+            **/speederv2-linux-arm64.gz
+            **/speederv2-windows-amd64.exe.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
