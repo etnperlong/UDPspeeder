@@ -54,10 +54,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_libraries(speederv2 PRIVATE ws2_32 pthread)
+    target_compile_options(speederv2 PRIVATE
+        -Wno-narrowing
+        -Wno-sign-compare
+        -Wno-type-limits
+    )
     target_compile_definitions(speederv2 PRIVATE
         WIN32_LEAN_AND_MEAN
         _WIN32_WINNT=0x0601
         NOMINMAX
+        INVALID_SOCKET=SOCKET(-1)
+        SOCKET_ERROR=-1
     )
 endif()
 
