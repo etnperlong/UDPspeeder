@@ -44,7 +44,9 @@ jobs:
           if [ "${{ matrix.os }}" = "linux" ] && [ "${{ matrix.arch }}" = "arm64" ]; then
             cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
           elif [ "${{ matrix.os }}" = "windows" ]; then
-            cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=${{ matrix.compiler }} -DCMAKE_SYSTEM_NAME=Windows
+            cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_TOOLCHAIN_FILE=./windows-toolchain.cmake
           else
             cmake -B build -DCMAKE_BUILD_TYPE=Release
           fi
